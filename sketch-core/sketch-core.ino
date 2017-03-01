@@ -26,7 +26,7 @@ const int RF24_CE_PIN                         = 9;    /* nRF24L01 ce pin     */
 const int RF24_CSN_PIN                        = 10;   /* nRF24L01 csn pin    */
 
 /* Prints to Serial instead of using the nRF module */
-const boolean DEBUG                           = true;
+const boolean DEBUG                           = false;
 
 /*********************************************
 *                                            *
@@ -141,14 +141,13 @@ String readSensors() {
 
 void setup()
 {
-  
+  Serial.begin(9600); //initialize serial monitor
+  Serial.println("Tiempo de siembra, child controller: " + String(VERSION));
+
   if (!DEBUG) {
+    Serial.println("Radio begin");
     radio.begin();
     radio.openWritingPipe(pipe);  
-  }
-  else {
-    Serial.begin(9600); //initialize serial monitor
-    Serial.println("Tiempo de siembra, child controller: " + String(VERSION));
   }
   
 }
@@ -162,12 +161,13 @@ void loop()
   }
   else {
     radio.powerUp();
-    theMessage = String(theMessage + "█");
+    theMessage = String(theMessage + "~");
 
     int messageSize = theMessage.length();
     for (int i = 0; i < messageSize; i++) {
       int charToSend[1];
       charToSend[0] = theMessage.charAt(i);
+      
       radio.write(charToSend,1);
       delay(10);
     }
