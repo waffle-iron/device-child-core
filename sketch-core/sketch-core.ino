@@ -1,17 +1,21 @@
 /***********************************************
 * tiempodesiembra.es
-* child controller 0.0.1
+* child controller 0.0.2
 **********************************************/
 
-const char VERSION = {"0.0.1"};
+const char VERSION = {"0.0.2"};
 
 /***********************************************
 * Device setup
 **********************************************/
 
 /* Tiempo de siembra */
-// uuid - https://www.uuidgenerator.net/
+/* uuid - https://www.uuidgenerator.net/ */
+
+// Unique ID for this device
 const char DEVICE_UNIT_UUID   = {"8d1b208e-cadb-4767-b199-cda6cbed3b0d"};
+
+// Cryto KEY used to share message with the root device.
 const char DEVICE_LINK_CRYPTO = {"960e4ce7-53e2-48ac-b7bb-30ef00f2d20d"};
 
 /* Enable or disable */                               // Enable or disable
@@ -22,11 +26,15 @@ const boolean TEMPERATURE_SENSOR_ENABLED      = true; // Temperature
 const int MOISTURE_SENSOR_PIN                 = 0;     // Moisture sensor
 const int TEMPERATURE_SENSOR_PIN              = 1;     // Temperature sensor
 
-const int RF_RX_PIN                           = 2;     // RF rx
-const int RF_TX_PIN                           = 3;     // RF tx
+const int RF24_CE_PIN                         = 9;     // nRF24L01 ce pin
+const int RF24_CSN_PIN                        = 10;    // nRF24L01 csn pin
 
 /***********************************************
-* Custom values
+* 
+* 
+*    Do NOT change anything from this point
+* 
+* 
 **********************************************/
 
 /* Moisture */
@@ -43,19 +51,20 @@ const int TEMPERATURE_LEVELS[9] = {
   6, 7, 8  // high
  };
 
-/***********************************************
-* 
-* 
-*    Do NOT change anything from this point
-* 
-* 
-**********************************************/
+
 
 /***********************************************
 * Libraries
 **********************************************/
 
+// Vars
+#include <printf.h>
 #include <ArduinoJson.h>
+
+// Comm
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <RF24_config.h>
 
 /***********************************************
 * System definitions
@@ -66,6 +75,11 @@ const int LOOP_DELAY = 1 * 1000; // <seconds> * <ms>
 
 /* Levels */
 const char SENSOR_LEVELS[9] = {'lowl', 'low', 'lowg', 'medl', 'med', 'medh', 'higl', 'hig', 'higg'};
+
+/* Comm */
+int msg[1];
+RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
+const uint64_t pipe = 0xE8E8F0F0E1LL;
 
 /***********************************************
 * Functions
@@ -119,11 +133,27 @@ char* readSensors() {
 void setup()
 {
   Serial.begin(9600); //initialize serial monitor
+
+  radio.begin();
+  radio.openWritingPipe(pipe);
+  
   Serial.println("start");
 }
 
 void loop()
 {
-  // readSensors();
+  // String theMessage = readSensors() + "X";
+  int messageSize = theMessage.length();
+
+  for (int i = 0; i < messageSize; i++) {
+    int charToSend[1];
+    charToSend[0] = theMessage.charAt(i);
+    radio.write(charToSend,1);
+    delay(10);
+  }
+
+  radio.powerDown(); 
   delay(LOOP_DELAY);
+  radio.powerUp();
 }
+
