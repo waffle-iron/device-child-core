@@ -1,40 +1,39 @@
-/***********************************************
-* tiempodesiembra.es
-* child controller 0.0.2
+/*********************************************
+* tiempodesiembra.es                         *
+* child controller 0.0.2                     *
 **********************************************/
 
-const char VERSION = {"0.0.2"};
-
-/***********************************************
-* Device setup
+/*********************************************
+* Device setup                               *
 **********************************************/
 
-/* Tiempo de siembra */
 /* uuid - https://www.uuidgenerator.net/ */
 
-// Unique ID for this device
-const char DEVICE_UNIT_UUID   = {"8d1b208e-cadb-4767-b199-cda6cbed3b0d"};
+/* Unique ID for this device */
+const String DEVICE_UNIT_UUID   = {"8d1b208e-cadb-4767-b199-cda6cbed3b0d"};
 
-// Cryto KEY used to share message with the root device.
-const char DEVICE_LINK_CRYPTO = {"960e4ce7-53e2-48ac-b7bb-30ef00f2d20d"};
+/* Cryto KEY used to share message with the root device. */
+const String DEVICE_LINK_CRYPTO = {"960e4ce7-53e2-48ac-b7bb-30ef00f2d20d"};
 
-/* Enable or disable */                               // Enable or disable
-const boolean MOISTURE_SENSOR_ENABLED         = true; // Moisture
-const boolean TEMPERATURE_SENSOR_ENABLED      = true; // Temperature
+/* Enable or disable */                               /* Enable or disable   */
+const boolean MOISTURE_SENSOR_ENABLED         = true; /* Moisture            */
+const boolean TEMPERATURE_SENSOR_ENABLED      = true; /* Temperature         */
 
-/* PIN setup */                                       // PIN setup
-const int MOISTURE_SENSOR_PIN                 = 0;     // Moisture sensor
-const int TEMPERATURE_SENSOR_PIN              = 1;     // Temperature sensor
+/* PIN setup */                                       /* PIN setup           */
+const int MOISTURE_SENSOR_PIN                 = 0;    /* Moisture sensor     */
+const int TEMPERATURE_SENSOR_PIN              = 1;    /* Temperature sensor  */
+const int RF24_CE_PIN                         = 9;    /* nRF24L01 ce pin     */
+const int RF24_CSN_PIN                        = 10;   /* nRF24L01 csn pin    */
 
-const int RF24_CE_PIN                         = 9;     // nRF24L01 ce pin
-const int RF24_CSN_PIN                        = 10;    // nRF24L01 csn pin
+/* Prints to Serial instead of using the nRF module */
+const boolean DEBUG                           = true;
 
-/***********************************************
-* 
-* 
-*    Do NOT change anything from this point
-* 
-* 
+/*********************************************
+*                                            *
+*                                            *
+*    Do NOT change anything from this point  *
+*                                            *
+*                                            *
 **********************************************/
 
 /* Moisture */
@@ -51,44 +50,44 @@ const int TEMPERATURE_LEVELS[9] = {
   6, 7, 8  // high
  };
 
-
-
-/***********************************************
-* Libraries
+/*********************************************
+* Libraries                                  *
 **********************************************/
 
-// Vars
+/* Vars */
 #include <printf.h>
 #include <ArduinoJson.h>
 
-// Comm
+/* Comm */
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <RF24_config.h>
 
-/***********************************************
-* System definitions
+/*********************************************
+* System definitions                         *
 **********************************************/
+
+const char* VERSION = {"0.0.2"};
 
 /* Loop */
 const int LOOP_DELAY = 1 * 1000; // <seconds> * <ms>
 
 /* Levels */
-const char SENSOR_LEVELS[9] = {'lowl', 'low', 'lowg', 'medl', 'med', 'medh', 'higl', 'hig', 'higg'};
+const String SENSOR_LEVELS[9] = {"lowl", "low", "lowg", "medl", "med", "medh", "higl", "hig", "higg"};
 
 /* Comm */
 int msg[1];
 RF24 radio(RF24_CE_PIN, RF24_CSN_PIN);
 const uint64_t pipe = 0xE8E8F0F0E1LL;
 
-/***********************************************
-* Functions
+/*********************************************
+* Functions                                  *
 **********************************************/
 
 /*
  * Returns the level for a given type and value
  */
-char getLevel(char type[3], int value) {
+String getLevel(char type[3], int value) {
   int level[9];
   int biggerIndex = 0;
   
@@ -109,51 +108,73 @@ char getLevel(char type[3], int value) {
   return SENSOR_LEVELS[biggerIndex];
 };
 
-char* readSensors() {
+String readSensors() {
 
-  JsonObject& root = StaticJsonBuffer<200> jsonBuffer;
+  // Create JSON object
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+
+  // Attach device ID
+  root["d"] = DEVICE_UNIT_UUID;
+  
+  // Attach device version
+  root["v"] = VERSION;
   
   if (MOISTURE_SENSOR_ENABLED) {
-    root['MOI'] = getLevel(
-      "MOI",
-      analogRead(MOISTURE_SENSOR_PIN)
-     );
+    JsonArray& mData = root.createNestedArray("moi");
+    int val = analogRead(MOISTURE_SENSOR_PIN);
+    mData.add(val);
+    mData.add(getLevel("MOI", val));
   }
   
   if (TEMPERATURE_SENSOR_ENABLED) {
-    root['TEM'] = getLevel(
-      "MOI",
-      analogRead(TEMPERATURE_SENSOR_PIN)
-     );
+    JsonArray& tData = root.createNestedArray("tem");
+    int val = analogRead(TEMPERATURE_SENSOR_PIN);
+    tData.add(val);
+    tData.add(getLevel("TEM", val));
   }
 
-  return root;
+  String output;
+  root.printTo(output);
+  return output;
 };
 
 void setup()
 {
-  Serial.begin(9600); //initialize serial monitor
-
-  radio.begin();
-  radio.openWritingPipe(pipe);
   
-  Serial.println("start");
+  if (!DEBUG) {
+    radio.begin();
+    radio.openWritingPipe(pipe);  
+  }
+  else {
+    Serial.begin(9600); //initialize serial monitor
+    Serial.println("Tiempo de siembra, child controller: " + String(VERSION));
+  }
+  
 }
 
 void loop()
 {
-  // String theMessage = readSensors() + "X";
-  int messageSize = theMessage.length();
+  String theMessage = readSensors();
+  
+  if (DEBUG) {
+    Serial.println(theMessage);
+  }
+  else {
+    radio.powerUp();
+    theMessage = String(theMessage + "█");
 
-  for (int i = 0; i < messageSize; i++) {
-    int charToSend[1];
-    charToSend[0] = theMessage.charAt(i);
-    radio.write(charToSend,1);
-    delay(10);
+    int messageSize = theMessage.length();
+    for (int i = 0; i < messageSize; i++) {
+      int charToSend[1];
+      charToSend[0] = theMessage.charAt(i);
+      radio.write(charToSend,1);
+      delay(10);
+    }
+    radio.powerDown();
   }
 
-  radio.powerDown(); 
   delay(LOOP_DELAY);
-  radio.powerUp();
+
 }
 
